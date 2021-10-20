@@ -49,7 +49,7 @@ async def _quit(ctx):
 
 
 # Duel Command
-async def duel_main(ctx, editMessage, roundNum, author, opponent):
+async def duel_main(ctx, roundNum, author, opponent):
     if author.equipment == 'Potion':
         authorAttack = author.fight()
         opponentAttack = opponent.fight()
@@ -70,12 +70,12 @@ async def duel_main(ctx, editMessage, roundNum, author, opponent):
     duelSim.add_field(name=f"**__Round {roundNum}__**", inline=False, value=f"{authorAttack}\n\n\n{opponentAttack}")
 
     duelSim.set_author(name=author.name, icon_url=author.user.avatar_url)
-    await editMessage.edit(content=None, embed=duelSim)
-    await author.next_round(roundNum, editMessage, ctx)
+    await author.message.edit(content=None, embed=duelSim)
+    await author.next_round(roundNum, ctx)
 
 
 class Dueler:
-    def __init__(self, member: discord.Member, equipment: str, maxPotions: int = 3, opponent=None):
+    def __init__(self, member: discord.Member, equipment: str, maxPotions: int = 3, opponent=None, mainMessage: discord.Message = None):
         self.user = member
         self.maxHP = 100
         self.health = self.maxHP
@@ -83,14 +83,18 @@ class Dueler:
         self.potionsLeft = maxPotions
         self.opponent = opponent
         self.name = member.display_name
+        self.message = mainMessage
 
     def equipmentChange(self, weapon):
         self.equipment = weapon
 
-    async def chooseEquipment(self, ctx, message, roundNum):
+    async def chooseEquipment(self, ctx, roundNum):
         booleans = [False, False]
+        reactionsToRemove = []
 
         def check(r: discord.Reaction, u):
+            if u.id != bot.user.id:
+                reactionsToRemove.append((str(r.emoji), u))
             b = str(r.emoji)
             if u == self.user:
                 if b in equipments.keys():
@@ -104,15 +108,16 @@ class Dueler:
             return booleans[0] and booleans[1]
 
         try:
-            reac, user = await bot.wait_for(event='reaction_add', timeout=15.0, check=check)
-            # await reac.remove(user)
+            await bot.wait_for(event='reaction_add', timeout=15.0, check=check)
+            for i, j in reactionsToRemove:
+                await self.message.remove_reaction(i, j)
         except asyncio.TimeoutError:
             await ctx.send('Timeout. You took too long!')
         else:
-            await duel_main(ctx, message, roundNum, self, self.opponent)
+            await duel_main(ctx, roundNum, self, self.opponent)
 
     def healthBar(self) -> str:
-        return "\u0020".join((["♥"] * (self.health // 10)) + (["♡"] * (self.maxHP // 10)))
+        return "`" + "\u0020".join((["♥"] * (self.health // 10)) + (["♡"] * (self.maxHP // 10))) + "`"
 
     def attack(self, min_dmg, max_dmg, attack_chance) -> int:
         isHit = random.choices([True, False], weights=[attack_chance * 100000, (100 - attack_chance) * 100000], k=1)[0]
@@ -147,7 +152,7 @@ class Dueler:
 
         return f"**{self.name}** missed **{self.opponent.name}** While using **{self.equipment}**"
 
-    async def next_round(self, roundNum, editMessage, ctx):
+    async def next_round(self, roundNum, ctx):
         if self.health == 0:
             if self.opponent.health == 0:
                 await ctx.send(content=f"Both **{self.name}** AND **{self.opponent.name}** fainted, it's a TIE")
@@ -157,7 +162,7 @@ class Dueler:
             await ctx.send(content=f"*{self.opponent.name}* fainted, hence, **{self.name} WINS**")
 
         if self.opponent.health and self.health:
-            await self.chooseEquipment(ctx=ctx, message=editMessage, roundNum=roundNum + 1)
+            await self.chooseEquipment(ctx=ctx, roundNum=roundNum + 1)
 
 
 @bot.command()
@@ -186,11 +191,14 @@ async def duel(ctx, member: discord.Member = None):
 
     equippedTool = {}
     booleans = [False, False]
+    reactionsToRemove = []
 
     for weaponEmoji in equipments.keys():
         await chooseMsg.add_reaction(weaponEmoji)
 
     def check(r: discord.Reaction, u):
+        if u.id != bot.user.id:
+            reactionsToRemove.append((str(r.emoji), u))
         b = str(r.emoji)
         if u == ctx.author:
             if b in equipments.keys():
@@ -204,16 +212,17 @@ async def duel(ctx, member: discord.Member = None):
         return booleans[0] and booleans[1]
 
     try:
-        reaction, user = await bot.wait_for(event='reaction_add', timeout=15.0, check=check)
-        await chooseMsg.remove_reaction(reaction.emoji, user)
+        await bot.wait_for(event='reaction_add', timeout=15.0, check=check)
+        for i, j in reactionsToRemove:
+            await chooseMsg.remove_reaction(i, j)
     except asyncio.TimeoutError:
         await ctx.send('Timeout. You took too long!')
     else:
-        player1 = Dueler(ctx.author, equipment=equippedTool[ctx.author])
-        player2 = Dueler(member, opponent=player1, equipment=equippedTool[member])
+        player1 = Dueler(ctx.author, equipment=equippedTool[ctx.author], mainMessage=chooseMsg)
+        player2 = Dueler(member, opponent=player1, equipment=equippedTool[member], mainMessage=chooseMsg)
         player1.opponent = player2
 
-        await duel_main(ctx, chooseMsg, roundNum=1, author=player1, opponent=player2)
+        await duel_main(ctx, roundNum=1, author=player1, opponent=player2)
 
 
 # Duel Command Ends
