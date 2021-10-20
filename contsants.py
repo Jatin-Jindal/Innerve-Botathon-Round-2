@@ -15,3 +15,41 @@ equipments = {
            'desc': "Potion! Heals you a little. Limited Uses only"
                    "\nHP Healed  :  **20-30**\nMax. Uses :  **3**"}
 }
+
+starters = {
+    "Kanto": {
+        "fire": "Charmander",
+        "water": "Squirtle",
+        "grass": "Bulbasaur",
+    },
+    "Johto": {
+        "fire": "Cyndaquil",
+        "water": "Totodile",
+        "grass": "Chikorita",
+    },
+    "Hoenn": {
+        "fire": "Torchic",
+        "water": "Mudkip",
+        "grass": "Treecko",
+    },
+    "Sinnoh": {
+        "fire": "Chimchar",
+        "water": "Piplup",
+        "grass": "Turtwig",
+    },
+    "Unova": {
+        "fire": "Tepig",
+        "water": "Oshawott",
+        "grass": "Snivy",
+    },
+    "Kalos": {
+        "fire": "Fennekin",
+        "water": "Froakie",
+        "grass": "Chespin",
+    },
+    "Alola": {
+        "fire": "Litten",
+        "water": "Popplio",
+        "grass": "Rowlet",
+    }
+}

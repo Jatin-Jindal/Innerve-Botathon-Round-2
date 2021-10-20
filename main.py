@@ -10,13 +10,13 @@ from contsants import *
 
 load_dotenv()
 
-bot = commands.Bot(command_prefix='?',
+bot = commands.Bot(command_prefix='g!',
                    case_insensitive=True,
                    description="An all purpose discord bot",
                    activity=discord.Activity(name='Innerve Bot-a-thon', type=5),
-                   # activity=discord.CustomActivity(name="Looking forward to talk with you~", emoji="😀"),
                    status=discord.Status.idle,
                    intents=discord.Intents.all(),
+                   strip_after_prefix=True
                    )
 
 
@@ -25,12 +25,13 @@ async def on_ready():
     print(f'Logged in as {bot.user}!')
 
 
+MESSAGES_SINCE_SPAWN = 0
+
+
 @bot.event
 async def on_message(message: discord.Message):
-    # if message.author.bot:
-    #     return
-    # if message.content.lstrip(bot.command_prefix) in bot.commands:
-    print(message.content)
+    if not message.content.startswith(bot.command_prefix):
+        print(message.content)
     await bot.process_commands(message)
 
 
@@ -117,7 +118,7 @@ class Dueler:
             await duel_main(ctx, roundNum, self, self.opponent)
 
     def healthBar(self) -> str:
-        return "`" + "\u0020".join((["♥"] * (self.health // 10)) + (["♡"] * (self.maxHP // 10))) + "`"
+        return "`" + "\u0020".join((["♥"] * (self.health // 10)) + (["♡"] * ((self.maxHP - self.health) // 10))) + "`"
 
     def attack(self, min_dmg, max_dmg, attack_chance) -> int:
         isHit = random.choices([True, False], weights=[attack_chance * 100000, (100 - attack_chance) * 100000], k=1)[0]
@@ -226,5 +227,28 @@ async def duel(ctx, member: discord.Member = None):
 
 
 # Duel Command Ends
+
+
+# PokeCord Stuff
+@bot.command()
+async def starter(ctx, choice=None):
+    if choice is None:
+        start = discord.Embed(
+            title="Choose a Starter PokéMon for your Journey",
+            description=f"To choose a starter, type **{bot.command_prefix}starter <starter pokemon name>**!",
+            colour=discord.Colour(0xff6900)
+        )
+        start.set_author(name=ctx.author.display_name, icon_url=ctx.author.avatar_url)
+        start.set_image(url="https://static.wikia.nocookie.net/pokeverse/images/4/46/Pokemon_starters_.png/revision/latest?cb=20180424013225")
+        for region, types in starters.items():
+            start.add_field(
+                name=region, inline=True,
+                value=f"🔥 - {types['fire']}\n💧 - {types['water']}\t\n🍃 - {types['grass']}"
+            )
+        start.set_thumbnail(
+            url='https://upload.wikimedia.org/wikipedia/commons/thumb/9/98/International_Pokémon_logo.svg/640px-International_Pokémon_logo.svg.png'
+        )
+        await ctx.send(embed=start)
+
 
 bot.run(os.getenv('TOKEN'))
