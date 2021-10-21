@@ -1,6 +1,4 @@
 import asyncio
-import datetime
-import re
 
 from dotenv import load_dotenv
 import os
@@ -10,6 +8,7 @@ import discord
 import discord.ext.commands as commands
 from contsants import *
 from pokeData import *
+from helpClass import EmbedHelpCommand
 
 load_dotenv()
 
@@ -19,7 +18,8 @@ bot = commands.Bot(command_prefix='g!',
                    activity=discord.Activity(name='Innerve Bot-a-thon', type=5),
                    status=discord.Status.idle,
                    intents=discord.Intents.all(),
-                   strip_after_prefix=True
+                   strip_after_prefix=True,
+                   help_command=EmbedHelpCommand()
                    )
 
 
@@ -30,6 +30,7 @@ async def on_ready():
 
 CHANCE_OF_SPAWN = 15
 spawnedMonData = {}
+
 pokeData = {}
 
 
@@ -175,8 +176,10 @@ class Dueler:
             await self.chooseEquipment(ctx=ctx, roundNum=roundNum + 1)
 
 
-@bot.command()
-async def duel(ctx, member: discord.Member = None):
+@bot.command(name="Duel", brief="Initates a duel with a pinged member",
+             help=(f"Duel it out against some other member. Choose high damage over low accuracy? Or choose high accuracy over low damage? Choice is yours."
+                   f"\n\tUsage: **{bot.command_prefix} duel [member to duel against]**"))
+async def _duel(ctx, member: discord.Member = None):
     if member is None:
         await ctx.send("Mention a user to duel with.")
         return
@@ -239,8 +242,10 @@ async def duel(ctx, member: discord.Member = None):
 
 
 # PokeCord Stuff
-@bot.command(aliases=['start'])
-async def starter(ctx, choice: str = None):
+@bot.command(name="Pick", aliases=['Start', 'Starter'], brief="Pick a starter pokémon for your journeys!",
+             help=(f"Choose your starter! Choose carefully since you can only choose it once."
+                   f"\n\tUsage: **{bot.command_prefix} pick [starter to choose]**\n\t\t(PS. Use **{bot.command_prefix} pick** to see all starters)"))
+async def _pick(ctx, choice: str = None):
     choice = choice.strip() if choice is not None else choice
     if ctx.author in pokeData.keys():
         ctx.send("You have already gotten a starter.")
@@ -304,11 +309,12 @@ async def starter(ctx, choice: str = None):
                 await ctx.send(embed=starterMon)
 
 
-@bot.command(aliases=['dex', 'bag', 'show'])
-async def pokemons(ctx):
+@bot.command(name="Show", aliases=['Dex', 'Bag', 'Pokedex'], brief="Show all the pokémons you have caught!",
+             help=f"Use this command to see all the Pokémon you have caught!\n\tUsage: **{bot.command_prefix} show")
+async def _show(ctx):
     if ctx.author not in pokeData.keys():
         await ctx.send("You have not picked a starter yet.")
-        await starter(ctx)
+        await _pick(ctx)
         return
     desc = ""
     for i, mon in enumerate(pokeData[ctx.author], start=1):
@@ -342,11 +348,14 @@ def generate(pokeNum=None, name=None, minLvl=1, maxLvl=100):
     return pokemon
 
 
-@bot.command()
+@bot.command(name="Info", brief="Displays information about Pokémon!",
+             help=(f"Use this command to see the IVs and levels or your caught pokémon."
+                   f"\n\tUsage: **{bot.command_prefix} info [pokémon number]**\n\t\t"
+                   f"(PS. Use **{bot.command_prefix} info latest** to see info about last catch"))
 async def info(ctx, flag: str):
     if ctx.author not in pokeData.keys():
         await ctx.send("You have not picked a starter yet.")
-        await starter(ctx)
+        await _pick(ctx)
         return
     mon = pokeData[ctx.author][-1]
     if flag.lower() == 'latest':
@@ -388,11 +397,13 @@ async def spawn(channel):
     spawnedMonData["mon"] = mon
 
 
-@bot.command()
-async def catch(ctx, pokemonName):
+@bot.command(name="Catch", brief="Catch a Pokémon!",
+             help=(f"Catch the Pokémon spawned in a channel. If there is no pokémon, you cant catch any."
+                   f"\n\tUsage: **{bot.command_prefix} catch [pokémon name]**"))
+async def _catch(ctx, pokemonName):
     if ctx.author not in pokeData.keys():
         await ctx.send("You have not picked a starter yet.")
-        await starter(ctx)
+        await _pick(ctx)
         return
     channel = spawnedMonData["channel"]
     mon = spawnedMonData["mon"]
