@@ -1,4 +1,5 @@
 import asyncio
+import re
 
 from dotenv import load_dotenv
 import os
@@ -7,6 +8,7 @@ import random
 import discord
 import discord.ext.commands as commands
 from contsants import *
+from pokeData import *
 
 load_dotenv()
 
@@ -25,12 +27,16 @@ async def on_ready():
     print(f'Logged in as {bot.user}!')
 
 
-MESSAGES_SINCE_SPAWN = 0
+CHANCE_OF_SPAWN = 15
+
+pokeData = {}
 
 
 @bot.event
 async def on_message(message: discord.Message):
     if not message.content.startswith(bot.command_prefix):
+        ctx = await bot.get_context(message)
+        isSpawn = random.choices([True, False], weights=[CHANCE_OF_SPAWN * 100000, (100 - CHANCE_OF_SPAWN) * 100000], k=1)[0]
         print(message.content)
     await bot.process_commands(message)
 
@@ -230,11 +236,15 @@ async def duel(ctx, member: discord.Member = None):
 
 
 # PokeCord Stuff
-@bot.command()
-async def starter(ctx, choice=None):
-    if choice is None:
+@bot.command(aliases=['start'])
+async def starter(ctx, choice: str = None):
+    choice = choice.strip() if choice is not None else choice
+    if ctx.author in pokeData.keys():
+        ctx.send("You have already gotten a starter.")
+        return
+    if choice is None or choice.lower() not in starterNames:
         start = discord.Embed(
-            title="Choose a Starter PokéMon for your Journey",
+            title="Choose a Starter PokéMon for your Journey" if choice is None else "INVALID CHOICE! Choose starter from this list only.",
             description=f"To choose a starter, type **{bot.command_prefix}starter <starter pokemon name>**!",
             colour=discord.Colour(0xff6900)
         )
@@ -249,6 +259,117 @@ async def starter(ctx, choice=None):
             url='https://upload.wikimedia.org/wikipedia/commons/thumb/9/98/International_Pokémon_logo.svg/640px-International_Pokémon_logo.svg.png'
         )
         await ctx.send(embed=start)
+    else:
+        start = discord.Embed(
+            title=f"You chose {choice.capitalize()} as your starter!",
+            description=f"NOTE: Starter cannot be changed later. To confirm, please react with ✅, else ❎",
+            colour=discord.Colour(0xff6900)
+        )
+        start.set_author(name=ctx.author.display_name, icon_url=ctx.author.avatar_url)
+        pokemon = generate(name=choice.lower(), minLvl=5, maxLvl=5)
+        start.set_image(url=pokemon.image)
+        message = await ctx.send(embed=start)
+        await message.add_reaction(emoji="✅")
+        await message.add_reaction(emoji="❎")
+
+        def check(reac, user):
+            if user == ctx.author and reac.emoji in "✅❎":
+                return True
+
+        try:
+            r, u = await bot.wait_for('reaction_add', timeout=60.0, check=check)
+            await message.remove_reaction(r.emoji, u)
+        except asyncio.TimeoutError:
+            ctx.send("TIMEOUT! Please choose again later.")
+        else:
+            if r.emoji == "❎":
+                await ctx.send(f"**{choice.capitalize()}** was not chosen as starter pokemon.")
+            if r.emoji == "✅":
+                pokeData[ctx.author] = [pokemon]
+                starterMon = discord.Embed(
+                    title="Starter chosen!",
+                    description=f"{choice.capitalize()} was chosen to be your starter pokemon!",
+                    colour=discord.Colour(0xff6900)
+                )
+                starterMon.set_author(name=ctx.author.display_name, icon_url=ctx.author.avatar_url)
+                starterMon.set_image(url=pokemon.image)
+
+                starterMon.add_field(
+                    name=f"IV Stats", inline=True,
+                    value='\n'.join(f"{k} : {v}" for k, v in pokemon.stats.items())
+                )
+                await ctx.send(embed=starterMon)
+
+
+@bot.command(aliases=['dex', 'bag', 'show'])
+async def pokemons(ctx):
+    if ctx.author not in pokeData.keys():
+        await ctx.send("You have not picked a starter yet.")
+        await starter(ctx)
+        return
+    desc = ""
+    for i, mon in enumerate(pokeData[ctx.author], start=1):
+        desc += f"{i: >3})_   _**{mon.name.capitalize()}** - Level {mon.level}\n"
+    mons = discord.Embed(title="List of pokémons you have caught", colour=discord.Colour(0xff6900),
+                         description=f"Here are pokemons you have caught yet.\n{desc}")
+    await ctx.send(embed=mons)
+
+
+def generate(pokeNum=None, name=None, minLvl=1, maxLvl=100):
+    if name is not None:
+        data = fetch_data_by_name(name=name)
+    elif pokeNum is not None:
+        data = fetch_data(pokeNumber=pokeNum)
+    else:
+        pokemonNumber = random.randint(1, 809)
+        data = fetch_data(pokeNumber=pokemonNumber)
+
+    stats = {
+        "HP     ": random.randint(0, 31),
+        "ATK    ": random.randint(0, 31),
+        "DEF    ": random.randint(0, 31),
+        "SPEED  ": random.randint(0, 31),
+        "SP. ATK": random.randint(0, 31),
+        "SP. DEF": random.randint(0, 31)
+    }
+
+    level = random.randint(minLvl, maxLvl)
+
+    pokemon = Pokemon(pokeNum=data['id'], name=data['name'], level=level, image=data['image'], stats=stats, types=data['types'])
+    return pokemon
+
+
+@bot.command()
+async def spawn(ctx):
+    if ctx.author not in pokeData.keys():
+        await ctx.send("You have not picked a starter yet.")
+        await starter(ctx)
+        return
+    mon = generate()
+    spawnEmbed = discord.Embed(
+        title="Pokémon Spawn!",
+        description=f"Type **g!catch <pokemon name>** to catch!",
+        colour=discord.Colour(0xff6900)
+    )
+    spawnEmbed.set_author(name=ctx.author.display_name, icon_url=ctx.author.avatar_url)
+    spawnEmbed.set_image(url=mon.image)
+
+    await ctx.send(embed=spawnEmbed)
+
+    def check(m: discord.Message):
+        if m.author in pokeData.keys():
+            c = m.content
+            # c = re.sub(r'g!\s*', '', c)
+            if c.lower() == f"!catch {mon.name.lower()}":
+                return True
+
+    try:
+        msg = await bot.wait_for('message', timeout=60.0, check=check)
+    except asyncio.TimeoutError:
+        await ctx.send("Pokémon ran away")
+    else:
+        pokeData[msg.author].append(mon)
+        await ctx.send(f"Congratulations **{msg.author}**! You caught a level {mon.level} {mon.name.capitalize()}!!")
 
 
 bot.run(os.getenv('TOKEN'))

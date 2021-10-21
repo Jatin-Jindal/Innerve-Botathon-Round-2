@@ -53,3 +53,29 @@ starters = {
         "grass": "Rowlet",
     }
 }
+
+starterNames = set()
+for i in starters.values():
+    for j in i.values():
+        starterNames.add(j.lower())
+
+
+class pokedex:
+    def __init__(self, user):
+        self.pokedex = {}
+        self.user = user
+        self.length = 0
+
+    def addEntry(self, catchName, catchImg):
+        self.length += 1
+        self.pokedex[self.length] = {'name': catchName, 'image': catchImg}
+
+
+class Pokemon:
+    def __init__(self, pokeNum, name, level, image, stats, types):
+        self.id = pokeNum
+        self.name = name
+        self.level = level
+        self.image = image
+        self.stats = stats
+        self.types = types
