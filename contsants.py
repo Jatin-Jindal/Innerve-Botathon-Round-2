@@ -81,4 +81,4 @@ class Pokemon:
         self.types = types
 
     def typeString(self) -> str:
-        return '/'.join(self.types)
+        return '/'.join(i.capitalize() for i in self.types)

@@ -29,13 +29,13 @@ async def on_ready():
 
 
 CHANCE_OF_SPAWN = 15
-
+spawnedMonData = {}
 pokeData = {}
 
 
 @bot.event
 async def on_message(message: discord.Message):
-    if not message.content.startswith(bot.command_prefix):
+    if not message.content.startswith(bot.command_prefix) and not message.author.bot:
         ctx = await bot.get_context(message)
         isSpawn = random.choices([True, False], weights=[CHANCE_OF_SPAWN * 100000, (100 - CHANCE_OF_SPAWN) * 100000], k=1)[0]
         if isSpawn:
@@ -374,10 +374,6 @@ async def info(ctx, flag: str):
 
 # @bot.command(enabled = False)
 async def spawn(channel):
-    # if ctx.author not in pokeData.keys():
-    #     await ctx.send("You have not picked a starter yet.")
-    #     await starter(ctx)
-    #     return
     mon = generate()
     spawnEmbed = discord.Embed(
         title="Pokémon Spawn!",
@@ -388,6 +384,27 @@ async def spawn(channel):
     spawnEmbed.set_image(url=mon.image)
 
     await channel.send(embed=spawnEmbed)
+    spawnedMonData["channel"] = channel
+    spawnedMonData["mon"] = mon
+
+
+@bot.command()
+async def catch(ctx, pokemonName):
+    if ctx.author not in pokeData.keys():
+        await ctx.send("You have not picked a starter yet.")
+        await starter(ctx)
+        return
+    channel = spawnedMonData["channel"]
+    mon = spawnedMonData["mon"]
+    if channel is None or ctx.channel != channel:
+        await ctx.send("No pokemon is available to catch")
+        return
+    if pokemonName.lower() == mon.name.lower():
+        pokeData[ctx.author].append(mon)
+        await channel.send(f"Congratulations **{ctx.author}**! You caught a level {mon.level} {mon.name.capitalize()}!!\n"
+                           f"Type **{bot.command_prefix}info latest** to view!")
+        spawnedMonData["channel"] = None
+        spawnedMonData["mon"] = None
 
 
 bot.run(os.getenv('TOKEN'))
