@@ -79,3 +79,6 @@ class Pokemon:
         self.image = image
         self.stats = stats
         self.types = types
+
+    def typeString(self) -> str:
+        return '/'.join(self.types)

@@ -1,4 +1,5 @@
 import asyncio
+import datetime
 import re
 
 from dotenv import load_dotenv
@@ -37,6 +38,8 @@ async def on_message(message: discord.Message):
     if not message.content.startswith(bot.command_prefix):
         ctx = await bot.get_context(message)
         isSpawn = random.choices([True, False], weights=[CHANCE_OF_SPAWN * 100000, (100 - CHANCE_OF_SPAWN) * 100000], k=1)[0]
+        if isSpawn:
+            await spawn(message.channel)
         print(message.content)
     await bot.process_commands(message)
 
@@ -340,36 +343,51 @@ def generate(pokeNum=None, name=None, minLvl=1, maxLvl=100):
 
 
 @bot.command()
-async def spawn(ctx):
+async def info(ctx, flag: str):
     if ctx.author not in pokeData.keys():
         await ctx.send("You have not picked a starter yet.")
         await starter(ctx)
         return
+    mon = pokeData[ctx.author][-1]
+    if flag.lower() == 'latest':
+        pass
+    else:
+        try:
+            pokemonNumber = int(flag) - 1
+            mon = pokeData[ctx.author][pokemonNumber]
+        except (IndexError, BaseException):
+            await ctx.send("INVALID NUMBER")
+            return
+    caughtEmbed = discord.Embed(
+        title=f"Level {mon.level} {mon.name.capitalize()}",
+        colour=discord.Colour(0xff6900),
+        description=f"Type : {mon.typeString()}"
+    )
+    caughtEmbed.set_image(url=mon.image)
+    caughtEmbed.set_author(name=ctx.author.display_name, icon_url=ctx.author.avatar_url)
+    caughtEmbed.add_field(
+        name=f"IV Stats", inline=True,
+        value='\n'.join(f"{k} : {v}" for k, v in mon.stats.items())
+    )
+    await ctx.send(embed=caughtEmbed)
+
+
+# @bot.command(enabled = False)
+async def spawn(channel):
+    # if ctx.author not in pokeData.keys():
+    #     await ctx.send("You have not picked a starter yet.")
+    #     await starter(ctx)
+    #     return
     mon = generate()
     spawnEmbed = discord.Embed(
         title="Pokémon Spawn!",
-        description=f"Type **g!catch <pokemon name>** to catch!",
+        description=f"Type **{bot.command_prefix}catch <pokemon name>** to catch!",
         colour=discord.Colour(0xff6900)
     )
-    spawnEmbed.set_author(name=ctx.author.display_name, icon_url=ctx.author.avatar_url)
+    spawnEmbed.set_author(name=bot.user.display_name, icon_url=bot.user.avatar_url)
     spawnEmbed.set_image(url=mon.image)
 
-    await ctx.send(embed=spawnEmbed)
-
-    def check(m: discord.Message):
-        if m.author in pokeData.keys():
-            c = m.content
-            # c = re.sub(r'g!\s*', '', c)
-            if c.lower() == f"!catch {mon.name.lower()}":
-                return True
-
-    try:
-        msg = await bot.wait_for('message', timeout=60.0, check=check)
-    except asyncio.TimeoutError:
-        await ctx.send("Pokémon ran away")
-    else:
-        pokeData[msg.author].append(mon)
-        await ctx.send(f"Congratulations **{msg.author}**! You caught a level {mon.level} {mon.name.capitalize()}!!")
+    await channel.send(embed=spawnEmbed)
 
 
 bot.run(os.getenv('TOKEN'))
